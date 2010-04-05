@@ -16,11 +16,6 @@
     <td class="left">Repository</td>
     <td><b>{{ c.repository|repolink }}</b></td>
   </tr>
-  {% endif %} {% if c.project %}
-  <tr class="{{ row_class.next() }}">
-    <td class="left">Project</td>
-    <td><b>{{ c.project|projectlink }}</b></td>
-  </tr>
   {% endif %} {% if c.branch %}
   <tr class="{{ row_class.next() }}">
     <td class="left">Branch</td>
@@ -31,6 +26,16 @@
     <td class="left">Revision</td>
     <td>{%- if c.revlink -%}<a href="{{ c.revlink }}">{{ c.rev|e }}</a>
     {%- else -%}{{ c.rev|revlink(c.repository) }} {%- endif -%}</td>
+  </tr>
+  {% endif %} {% if c.project %}
+  <tr class="{{ row_class.next() }}">
+    <td class="left">Project</td>
+    <td><b>{{ c.project|projectlink }}</b></td>
+  </tr>
+  {% endif %} {% if c.category %}
+  <tr class="{{ row_class.next() }}">
+    <td class="left">Category</td>
+    <td><b>{{ c.category|e }}</b></td>
   </tr>
   {% endif %}
 </table>
