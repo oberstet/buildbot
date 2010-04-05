@@ -42,6 +42,8 @@ from twisted.application import service
 
 from buildbot import interfaces, util
 
+import pprint
+
 class ChangeManager(service.MultiService):
 
     """This is the master-side service which receives file change
@@ -97,10 +99,6 @@ class ChangeManager(service.MultiService):
     def addChange(self, change):
         """Deliver a file change event. The event should be a Change object.
         This method will timestamp the object as it is received."""
-        log.msg("adding change, who %s, %d files, rev=%s, branch=%s, repository=%s, "
-                "comments %s, category %s" % (change.who, len(change.files),
-                                              change.revision, change.branch, change.repository,
-                                              change.comments, change.category))
 
         #self.pruneChanges() # use self.changeHorizon
         # for now, add these in the background, without waiting for it. TODO:
@@ -112,6 +110,7 @@ class ChangeManager(service.MultiService):
         # wakes up the Schedulers.
         self.parent.addChange(change)
 
+        log.msg ("adding change #%d:\n%s" % (change.number, pprint.pformat (change.asDict ())))
 
     # IEventSource methods
 

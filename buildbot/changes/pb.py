@@ -41,6 +41,7 @@ class ChangePerspective(NewCredPerspective):
                                     project=changedict.get('project', '') or '',
                                     )
             self.changemaster.addChange(change)
+            return change.asDict ()
 
 class PBChangeSource(base.ChangeSource):
     compare_attrs = ["user", "passwd", "port", "prefix"]
