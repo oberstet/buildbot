@@ -190,7 +190,19 @@ class Source(LoggingBuildStep):
 
         if self.alwaysUseLatest:
             revision = None
-        self.startVC(branch, revision, patch)
+
+        log.msg("Source step using sourcestamp = %s" % str(s.asDict()))
+
+        # Normally, repository is defined fixed in Source build step. The following
+        # forwards repository from sourcestamp, if it is defined in the latter.
+        # This is in turn allows changes from different repositories to forward their
+        # repourl within the change.
+        #
+        # Note: Must convert to str since in base.py args are type checked and unicode
+        # won't be allowed.
+        repos = str(s.repository)
+
+        self.startVC(branch, revision, patch, repos)
 
     def commandComplete(self, cmd):
         if cmd.updates.has_key("got_revision"):
@@ -237,7 +249,7 @@ class BK(Source):
         return changes.revision
                        
                        
-    def startVC(self, branch, revision, patch):
+    def startVC(self, branch, revision, patch, repository):
 
         warnings = []
         slavever = self.slaveVersion("bk")
@@ -385,7 +397,7 @@ class CVS(Source):
             when = (lastChange + lastSubmit) / 2
         return formatdate(when)
 
-    def startVC(self, branch, revision, patch):
+    def startVC(self, branch, revision, patch, repository):
         if self.slaveVersionIsOlderThan("cvs", "1.39"):
             # the slave doesn't know to avoid re-using the same sourcedir
             # when the branch changes. We have no way of knowing which branch
@@ -507,7 +519,7 @@ class SVN(Source):
         lastChange = max([int(c.revision) for c in changes])
         return lastChange
 
-    def startVC(self, branch, revision, patch):
+    def startVC(self, branch, revision, patch, repository):
 
         # handle old slaves
         warnings = []
@@ -653,7 +665,7 @@ class Darcs(Source):
             raise ValueError("you must provide exactly one of repourl and"
                              " baseURL")
 
-    def startVC(self, branch, revision, patch):
+    def startVC(self, branch, revision, patch, repository):
         slavever = self.slaveVersion("darcs")
         if not slavever:
             m = "slave is too old, does not know about darcs"
@@ -703,7 +715,7 @@ class Git(Source):
 
     name = "git"
 
-    def __init__(self, repourl,
+    def __init__(self, repourl=None,
                  branch="master",
                  submodules=False,
                  ignore_ignores=None,
@@ -744,7 +756,16 @@ class Git(Source):
             return None
         return changes[-1].revision
 
-    def startVC(self, branch, revision, patch):
+    def startVC(self, branch, revision, patch, repository):
+
+        # If repository was provided in sourcestamp, the following
+        # overrides any repository defined on the Source build step.
+        if repository is not None and repository != "":
+            self.args['repourl'] = repository
+        else:
+            if self.args['repourl'] is None:
+                raise ValueError("No repository URL. Cannot find repository URL (was not given as parameter repourl in build step definition, and was not given as a repository parameter in the change received either")
+
         if branch is not None:
             self.args['branch'] = branch
 
@@ -857,7 +878,7 @@ class Arch(Source):
 
         return warnings
 
-    def startVC(self, branch, revision, patch):
+    def startVC(self, branch, revision, patch, repository):
         self.args['version'] = branch
         self.args['revision'] = revision
         self.args['patch'] = patch
@@ -907,7 +928,7 @@ class Bazaar(Arch):
                           'archive': archive,
                           })
 
-    def startVC(self, branch, revision, patch):
+    def startVC(self, branch, revision, patch, repository):
         self.args['version'] = branch
         self.args['revision'] = revision
         self.args['patch'] = patch
@@ -982,7 +1003,7 @@ class Bzr(Source):
         lastChange = max([int(c.revision) for c in changes])
         return lastChange
 
-    def startVC(self, branch, revision, patch):
+    def startVC(self, branch, revision, patch, repository):
         slavever = self.slaveVersion("bzr")
         if not slavever:
             m = "slave is too old, does not know about bzr"
@@ -1064,7 +1085,7 @@ class Mercurial(Source):
             raise ValueError("you must provide exactly one of repourl and"
                              " baseURL")
 
-    def startVC(self, branch, revision, patch):
+    def startVC(self, branch, revision, patch, repository):
         slavever = self.slaveVersion("hg")
         if not slavever:
             raise BuildSlaveTooOldError("slave is too old, does not know "
@@ -1173,7 +1194,7 @@ class P4(Source):
         lastChange = max([int(c.revision) for c in changes])
         return lastChange
 
-    def startVC(self, branch, revision, patch):
+    def startVC(self, branch, revision, patch, repository):
         slavever = self.slaveVersion("p4")
         assert slavever, "slave is too old, does not know about p4"
         args = dict(self.args)
@@ -1223,7 +1244,7 @@ class P4Sync(Source):
         lastChange = max([int(c.revision) for c in changes])
         return lastChange
 
-    def startVC(self, branch, revision, patch):
+    def startVC(self, branch, revision, patch, repository):
         slavever = self.slaveVersion("p4sync")
         assert slavever, "slave is too old, does not know about p4"
         cmd = LoggedRemoteCommand("p4sync", self.args)
