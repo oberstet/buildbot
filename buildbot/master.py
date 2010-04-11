@@ -4,6 +4,7 @@ import os
 import signal
 import time
 import warnings
+import textwrap
 
 from zope.interface import implements
 from twisted.python import log, components
@@ -244,7 +245,11 @@ class BotMaster(service.MultiService):
 
     def _updateAllSlaves(self):
         """Notify all buildslaves about changes in their Builders."""
-        dl = [s.updateSlave() for s in self.slaves.values()]
+        dl = []
+        for s in self.slaves.values():
+            d = s.updateSlave()
+            d.addErrback(log.err)
+            dl.append(d)
         return defer.DeferredList(dl)
 
     def shouldMergeRequests(self, builder, req1, req2):
@@ -351,6 +356,8 @@ class Dispatcher:
         afactory = self.names.get(avatarID)
         if afactory:
             p = afactory.getPerspective()
+        elif avatarID == "change":
+            raise ValueError("no PBChangeSource installed")
         elif avatarID == "debug":
             p = DebugPerspective()
             p.master = self.master
@@ -375,6 +382,12 @@ class Dispatcher:
 ########################################
 
 class _Unset: pass  # marker
+
+class LogRotation: 
+    '''holds log rotation parameters (for WebStatus)'''
+    def __init__(self):
+        self.rotateLength = 1 * 1000 * 1000 
+        self.maxRotatedFiles = 10
 
 class BuildMaster(service.MultiService):
     debug = 0
@@ -435,6 +448,9 @@ class BuildMaster(service.MultiService):
             self.loadDatabase(db_spec)
 
         self.readConfig = False
+        
+        # create log_rotation object and set default parameters (used by WebStatus)
+        self.log_rotation = LogRotation()
 
     def startService(self):
         service.MultiService.startService(self)
@@ -853,7 +869,12 @@ class BuildMaster(service.MultiService):
         # make sure it's up to date
         sm = schema.DBSchemaManager(db_spec, self.basedir)
         if not sm.is_current():
-            raise exceptions.DatabaseNotReadyError
+            raise exceptions.DatabaseNotReadyError, textwrap.dedent("""
+                The Buildmaster database needs to be upgraded before this version of buildbot
+                can run.  Use the following command-line
+                    buildbot upgrade-master path/to/master
+                to upgrade the database, and try starting the buildmaster again.  You may want
+                to make a backup of your buildmaster before doing so.""")
 
         self.db = connector.DBConnector(db_spec)
         self.db.start()
