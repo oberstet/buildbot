@@ -37,6 +37,7 @@
 
 import time
 
+from twisted.python import log
 from buildbot import interfaces
 from buildbot.util import collections, NotABranch
 from buildbot.sourcestamp import SourceStamp
@@ -142,6 +143,32 @@ class Scheduler(base.BaseScheduler, base.ClassifierMixin):
         self._add_build_and_remove_changes(t, all_changes)
         return None
 
+    def _extract_buildernames_from_changes (self, all_changes):
+        builderNames = {}
+        for chg in all_changes:
+            c = chg.asDict ()
+            if c.has_key ('properties'):
+                props = c['properties']
+                for prop in props:
+                    if prop[0] == 'builderNames': # and prop[2] == 'Change' # further filter for properties coming from changes?
+                        if isinstance (prop[1], (list, tuple)):
+                            for bb in prop[1]:
+                                if isinstance (bb, str) or isinstance (bb, unicode):
+                                    b = str (bb)
+                                    if b in self.builderNames:
+                                        builderNames[b] = True
+                                    else:
+                                        log.msg ("%s : warning: skipping builder %s in change %d builderNames property - builder not defined in builderNames of Scheduler" % (str (self), b, chg.number))
+                                else:
+                                    log.msg ("%s : warning: skipping builder in change %d builderNames property - wrong type %s for builder (must be string/unicode)" % (str (self), chg.number, str (type (bb))))
+                        else:
+                            log.msg ("%s : warning: skipping builderNames property in change %d - wrong type %s for property (must be dict/list)" % (str (self), chg.number, str (type (prop[1]))))
+        if len (builderNames) == 0:
+            return None
+        else:
+            log.msg ("%s : creating buildset with builders specified in changes - %s" % (str (self), str (builderNames.keys ())))
+            return builderNames.keys ()
+
     def _add_build_and_remove_changes(self, t, all_changes):
         db = self.parent.db
         if self.treeStableTimer is None:
@@ -149,11 +176,11 @@ class Scheduler(base.BaseScheduler, base.ClassifierMixin):
             for c in all_changes:
                 ss = SourceStamp(changes=[c])
                 ssid = db.get_sourcestampid(ss, t)
-                self.create_buildset(ssid, "scheduler", t)
+                self.create_buildset(ssid, "scheduler", t, builderNames = self._extract_buildernames_from_changes ([c]))
         else:
             ss = SourceStamp(changes=all_changes)
             ssid = db.get_sourcestampid(ss, t)
-            self.create_buildset(ssid, "scheduler", t)
+            self.create_buildset(ssid, "scheduler", t, builderNames = self._extract_buildernames_from_changes (all_changes))
 
         # and finally retire the changes from scheduler_changes
         changeids = [c.number for c in all_changes]
